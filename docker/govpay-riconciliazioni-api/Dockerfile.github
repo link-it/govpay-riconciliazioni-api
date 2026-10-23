@@ -1,0 +1,69 @@
+FROM eclipse-temurin:25-jre-alpine
+
+ARG govpay_riconciliazioni_api_fullversion
+# sha256 del jar della release: la pipeline lo calcola dall'artifact della
+# build, build_image.sh lo legge dalle API delle release di GitHub.
+ARG govpay_riconciliazioni_api_sha256
+ARG govpay_riconciliazioni_api_home=/opt/govpay-riconciliazioni-api
+ARG govpay_riconciliazioni_api_log=/var/log/govpay-riconciliazioni-api
+
+LABEL maintainer="Link.it s.r.l."
+LABEL description="GovPay Riconciliazioni REST API"
+LABEL govpay.riconciliazioni-api.version="${govpay_riconciliazioni_api_fullversion}"
+USER root
+
+ENV GOVPAY_RICONCILIAZIONI_API_FULLVERSION=${govpay_riconciliazioni_api_fullversion} \
+GOVPAY_RICONCILIAZIONI_API_LOGDIR=${govpay_riconciliazioni_api_log} \
+GOVPAY_RICONCILIAZIONI_API_HOME=${govpay_riconciliazioni_api_home} \
+TZ=Europe/Rome
+
+
+RUN set -eux; \
+apk update; \
+apk upgrade; \
+# Solo cio' che serve a runtime: bash per l'entrypoint, tzdata per il fuso
+# orario. tar, unzip, netcat e curl non sono usati dall'entrypoint, e ogni
+# pacchetto in piu' e' superficie esposta e segnalazioni della scansione.
+apk add --no-cache bash tzdata; \
+rm -rf /var/cache/apk/*; \
+echo "${TZ}" > /etc/timezone; \
+addgroup -S govpay ; \
+adduser -S -G govpay govpay; \
+mkdir -p ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} /opt/sql /opt/jdbc-drivers; \
+chown -R govpay:govpay ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} /opt/sql
+
+WORKDIR ${GOVPAY_RICONCILIAZIONI_API_HOME}
+
+# Download del jar dalla release GitHub, con verifica del certificato e del
+# checksum: senza checksum l'immagine conterrebbe qualunque file venisse
+# servito a quell'indirizzo. curl serve solo qui: installato e rimosso nello
+# stesso passo, non resta nell'immagine.
+RUN set -eux; \
+apk add --no-cache --virtual .download curl; \
+test -n "${govpay_riconciliazioni_api_sha256}" || { echo "Manca il build-arg govpay_riconciliazioni_api_sha256 (sha256 del jar della release)"; exit 1; }; \
+curl -fL -sS -o /opt/govpay-riconciliazioni-api/govpay-riconciliazioni-api.jar "https://github.com/link-it/govpay-riconciliazioni-api/releases/download/${GOVPAY_RICONCILIAZIONI_API_FULLVERSION}/govpay-riconciliazioni-api-${GOVPAY_RICONCILIAZIONI_API_FULLVERSION}.jar"; \
+echo "${govpay_riconciliazioni_api_sha256}  /opt/govpay-riconciliazioni-api/govpay-riconciliazioni-api.jar" | sha256sum -c -; \
+apk del .download
+
+
+# Copy entrypoint and initialization scripts
+COPY commons/entrypoint.sh /usr/local/bin/
+RUN chown -R govpay:0 /usr/local/bin/entrypoint.sh ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} \
+&& chmod -Rf g+rwX ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} \
+&& chmod ug=rx /usr/local/bin/entrypoint.sh
+
+
+
+USER govpay
+
+ENV RICONCILIAZIONI_API_TIME_ZONE=Europe/Rome \
+    SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=20000 \
+    SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT=10000 \
+    SPRING_DATASOURCE_HIKARI_MAX_LIFETIME=600000 \
+    LOGGING_FILE_NAME=${GOVPAY_RICONCILIAZIONI_API_LOGDIR}/govpay-riconciliazioni-api.log \
+    LOGGING_DIRECTORYPATH=${GOVPAY_RICONCILIAZIONI_API_LOGDIR} \
+    LOGGING_FILEPREFIX=govpay-riconciliazioni-api
+
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD []

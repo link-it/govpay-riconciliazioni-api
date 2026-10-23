@@ -1,0 +1,10 @@
+2026-10-23  Giuliano Pintori <pintori@link.it>
+
+	* [Build] Issue #1 Pipeline di validazione e rilascio.
+	Struttura del progetto allineata agli altri componenti GovPay: scheletro
+	Spring Boot (govpay-bom, govpay-common, govpay-common-auth), contratto
+	OpenAPI con generazione delle interfacce, profili jar/war/dist, workflow
+	GitHub Actions di build, qualita' (JaCoCo, SonarCloud), sicurezza (OWASP
+	Dependency-Check, OSV, SBOM CycloneDX, Dependency-Track, licenze) e rilascio
+	(GitHub Release, immagini Docker di sviluppo e di release con scansione
+	Trivy/Grype).

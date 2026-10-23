@@ -1,0 +1,66 @@
+FROM eclipse-temurin:25-jre-alpine
+
+ARG govpay_riconciliazioni_api_fullversion
+ARG govpay_riconciliazioni_api_home=/opt/govpay-riconciliazioni-api
+ARG govpay_riconciliazioni_api_log=/var/log/govpay-riconciliazioni-api
+
+LABEL maintainer="Link.it s.r.l."
+LABEL description="GovPay Riconciliazioni REST API"
+LABEL govpay.riconciliazioni-api.version="${govpay_riconciliazioni_api_fullversion}"
+USER root
+
+ENV GOVPAY_RICONCILIAZIONI_API_FULLVERSION=${govpay_riconciliazioni_api_fullversion} \
+GOVPAY_RICONCILIAZIONI_API_LOGDIR=${govpay_riconciliazioni_api_log} \
+GOVPAY_RICONCILIAZIONI_API_HOME=${govpay_riconciliazioni_api_home} \
+TZ=Europe/Rome
+
+
+RUN set -eux; \
+apk update; \
+apk upgrade; \
+# Solo cio' che serve a runtime: bash per l'entrypoint, tzdata per il fuso
+# orario. tar, unzip, netcat e curl non sono usati dall'entrypoint, e ogni
+# pacchetto in piu' e' superficie esposta e segnalazioni della scansione.
+apk add --no-cache bash tzdata; \
+rm -rf /var/cache/apk/*; \
+echo "${TZ}" > /etc/timezone; \
+addgroup -S govpay ; \
+adduser -S -G govpay govpay; \
+mkdir -p ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} /opt/sql /opt/jdbc-drivers; \
+chown -R govpay:govpay ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} /opt/sql
+
+WORKDIR ${GOVPAY_RICONCILIAZIONI_API_HOME}
+
+# Copy JAR from local build context
+COPY *.jar /opt/govpay-riconciliazioni-api/govpay-riconciliazioni-api.jar
+
+# Copy SQL scripts (buildcontext/)
+# Stessa convenzione dei batch GovPay: lo SQL del componente e' dentro
+# l'immagine in /opt/sql/<dialetto>/, cosi' che il raccoglitore
+# govpay/src/main/resources/db/collect-release-sql.sh possa leggerlo
+# dall'immagine con la sorgente image:, oltre che dall'asset sql.zip del
+# rilascio. La directory era gia' creata e chownata sopra, ma vuota.
+COPY sql /opt/sql
+
+
+# Copy entrypoint and initialization scripts
+COPY commons/entrypoint.sh /usr/local/bin/
+RUN chown -R govpay:0 /usr/local/bin/entrypoint.sh ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} \
+&& chmod -Rf g+rwX ${GOVPAY_RICONCILIAZIONI_API_HOME} ${GOVPAY_RICONCILIAZIONI_API_LOGDIR} \
+&& chmod ug=rx /usr/local/bin/entrypoint.sh
+
+
+
+USER govpay
+
+ENV RICONCILIAZIONI_API_TIME_ZONE=Europe/Rome \
+    SPRING_DATASOURCE_HIKARI_CONNECTION_TIMEOUT=20000 \
+    SPRING_DATASOURCE_HIKARI_IDLE_TIMEOUT=10000 \
+    SPRING_DATASOURCE_HIKARI_MAX_LIFETIME=600000 \
+    LOGGING_FILE_NAME=${GOVPAY_RICONCILIAZIONI_API_LOGDIR}/govpay-riconciliazioni-api.log \
+    LOGGING_DIRECTORYPATH=${GOVPAY_RICONCILIAZIONI_API_LOGDIR} \
+    LOGGING_FILEPREFIX=govpay-riconciliazioni-api
+
+
+ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+CMD []
