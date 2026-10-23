@@ -1,0 +1,16 @@
+openapi: 3.0.3
+info:
+  title: GovPay - API Riconciliazioni
+  description: API per la riconciliazione dei pagamenti di GovPay.
+  version: 1.0.0
+  contact:
+    name: Link.it s.r.l.
+    url: https://www.link.it
+  license:
+    name: GPL-3.0
+    url: https://www.gnu.org/licenses/gpl-3.0.html
+servers:
+  - url: /
+paths: {}
+components:
+  schemas: {}

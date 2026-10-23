@@ -1,0 +1,2 @@
+-- Schema di govpay-riconciliazioni-api.
+-- Ancora vuoto: le tabelle verranno aggiunte con le prime funzionalita'.
