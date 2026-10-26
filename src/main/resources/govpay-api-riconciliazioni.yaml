@@ -1,0 +1,2712 @@
+openapi: 3.1.0
+info:
+  version: "1.0.0"
+  title: GovPay - API Riconciliazioni
+  description: >-
+    API di integrazione GovPay per la consultazione dei flussi di
+    rendicontazione, delle riscossioni e delle ricevute di pagamento e per
+    la riconciliazione dei movimenti di cassa, destinate ai sistemi di
+    ragioneria dell'Ente Creditore e alle altre applicazioni
+    preventivamente censite e autorizzate sull'istanza GovPay. Per il
+    censimento delle applicazioni, le credenziali di accesso e ulteriori
+    dettagli si rimanda alla documentazione ufficiale:
+    https://govpay.readthedocs.io/it/latest/integrazione/api/index.html.
+
+    Le risorse sono partizionate per Ente Creditore (`idDominio`). Le
+    risposte riportano le relazioni con le altre risorse GovPay (pendenze,
+    voci di pendenza) come riferimenti per identificativo e non come
+    oggetti annidati: il dettaglio delle pendenze si recupera tramite le
+    API Pendenze.
+
+    Gli elenchi sono paginati con le stesse convenzioni delle API
+    Pendenze e Console: `page`/`limit` (offset) oppure `cursor`/`limit`
+    (keyset), con `sort`, `fields` e `total`. L'uso di `page` al posto
+    di `offset` è una scelta consapevole rispetto a RAC_REST_NAME_005
+    delle Linee guida AgID, per mantenere un'unica convenzione di
+    paginazione tra le API GovPay.
+
+    Le versioni minor o di bugfix successive all'interno di questa major
+    version possono introdurre nuovi campi nei payload di richiesta e di
+    risposta, senza che ciò costituisca una modifica incompatibile.
+    Perché le integrazioni realizzate su questa major version continuino a
+    funzionare correttamente anche dopo tali evolutive, i client DEVONO
+    tollerare e ignorare eventuali campi non riconosciuti, sia nelle
+    risposte ricevute che, se già presenti in una richiesta per altri
+    scopi, nei payload inviati. Coerentemente, gli schemi di questa
+    specifica non vincolano l'insieme di proprietà accettate/restituite a
+    quello esplicitamente documentato.
+  contact:
+    name: GitHub Project Page
+    url: 'https://github.com/link-it/GovPay/'
+  license:
+    name: GPL
+    url: 'https://github.com/link-it/GovPay/blob/master/LICENSE'
+servers:
+  - url: /govpay/backend/api/riconciliazioni/rs/basic/v1/
+tags:
+  - name: FlussiRendicontazione
+    description: Consultazione dei flussi di rendicontazione ricevuti da pagoPA
+  - name: Riscossioni
+    description: Consultazione degli importi riscossi
+  - name: Riconciliazioni
+    description: Riconciliazione dei movimenti di cassa con le riscossioni
+  - name: Ricevute
+    description: Consultazione delle ricevute di pagamento ricevute da pagoPA
+  - name: Utenti
+    description: Profilo e autorizzazioni dell'utenza chiamante
+  - name: Servizio
+    description: Stato del servizio
+security:
+  - basicAuth: []
+paths:
+
+  # ============================================================
+  # FLUSSI DI RENDICONTAZIONE
+  # ============================================================
+
+  '/flussi-rendicontazione/{idDominio}':
+    get:
+      tags:
+        - FlussiRendicontazione
+      summary: Elenco dei flussi di rendicontazione
+      operationId: findFlussiRendicontazione
+      description: >-
+        Fornisce l'elenco dei flussi di rendicontazione ricevuti da pagoPA
+        per l'Ente Creditore. Ordinamento predefinito: `dataFlusso:desc`.
+        Campi ordinabili: `dataFlusso`, `data`, `dataRegolamento`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/dataDa'
+        - $ref: '#/components/parameters/dataA'
+        - name: stato
+          in: query
+          description: Stato del flusso di rendicontazione.
+          required: false
+          schema:
+            $ref: '#/components/schemas/StatoFlussoRendicontazione'
+        - $ref: '#/components/parameters/iuv'
+        - name: idFlusso
+          in: query
+          description: Identificativo del flusso di rendicontazione.
+          required: false
+          schema:
+            type: string
+        - name: escludiObsoleti
+          in: query
+          description: >-
+            Se `true`, esclude dai risultati le revisioni dei flussi
+            superate da una revisione successiva.
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - $ref: '#/components/parameters/total'
+      responses:
+        '200':
+          description: Elenco dei flussi di rendicontazione che rispettano i filtri di ricerca
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlussiRendicontazione'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/flussi-rendicontazione/{idDominio}/{idFlusso}':
+    get:
+      tags:
+        - FlussiRendicontazione
+      summary: Dettaglio di un flusso di rendicontazione
+      operationId: getFlussoRendicontazione
+      description: >-
+        Fornisce i dati di testata di un flusso di rendicontazione. Se
+        `dataFlusso` non è indicato, restituisce la revisione più recente
+        del flusso. Le singole rendicontazioni si recuperano tramite
+        `GET /flussi-rendicontazione/{idDominio}/{idFlusso}/rendicontazioni`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIdFlusso'
+        - $ref: '#/components/parameters/dataFlusso'
+      responses:
+        '200':
+          description: Dettaglio del flusso di rendicontazione
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FlussoRendicontazione'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/flussi-rendicontazione/{idDominio}/{idFlusso}/rendicontazioni':
+    get:
+      tags:
+        - FlussiRendicontazione
+      summary: Elenco delle rendicontazioni di un flusso
+      operationId: findRendicontazioniFlusso
+      description: >-
+        Fornisce le rendicontazioni contenute in un flusso di
+        rendicontazione. Se `dataFlusso` non è indicato, si riferisce alla
+        revisione più recente del flusso. Ordinamento predefinito:
+        `indice:asc` nell'ordine del flusso.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIdFlusso'
+        - $ref: '#/components/parameters/dataFlusso'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - $ref: '#/components/parameters/total'
+      responses:
+        '200':
+          description: Elenco delle rendicontazioni del flusso
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Rendicontazioni'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/flussi-rendicontazione/{idDominio}/{idFlusso}/xml':
+    get:
+      tags:
+        - FlussiRendicontazione
+      summary: XML originale di un flusso di rendicontazione
+      operationId: getFlussoRendicontazioneXml
+      description: >-
+        Fornisce il flusso di rendicontazione nel formato XML originale
+        ricevuto da pagoPA. Se `dataFlusso` non è indicato, restituisce la
+        revisione più recente del flusso.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIdFlusso'
+        - $ref: '#/components/parameters/dataFlusso'
+      responses:
+        '200':
+          description: XML originale del flusso di rendicontazione
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/xml:
+              schema:
+                type: string
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  # ============================================================
+  # RISCOSSIONI
+  # ============================================================
+
+  '/riscossioni/{idDominio}':
+    get:
+      tags:
+        - Riscossioni
+      summary: Elenco delle riscossioni
+      operationId: findRiscossioni
+      description: >-
+        Fornisce l'elenco degli importi riscossi per l'Ente Creditore.
+        Ordinamento predefinito: `data:desc`. Campi ordinabili: `data`,
+        `importo`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/dataDa'
+        - $ref: '#/components/parameters/dataA'
+        - name: stato
+          in: query
+          description: Stato della riscossione.
+          required: false
+          schema:
+            $ref: '#/components/schemas/StatoRiscossione'
+        - name: tipo
+          in: query
+          description: >-
+            Tipologie di riscossione da includere. Se assente si applica
+            `ENTRATA,MBT`.
+          required: false
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/TipoRiscossione'
+        - $ref: '#/components/parameters/iuv'
+        - name: iur
+          in: query
+          description: Identificativo univoco di riscossione.
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - $ref: '#/components/parameters/total'
+      responses:
+        '200':
+          description: Elenco delle riscossioni che rispettano i filtri di ricerca
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Riscossioni'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/riscossioni/{idDominio}/{iuv}/{iur}/{indice}':
+    get:
+      tags:
+        - Riscossioni
+      summary: Dettaglio di una riscossione
+      operationId: getRiscossione
+      description: >-
+        Fornisce il dettaglio di una riscossione, comprensivo dell'eventuale
+        allegato (esito del pagamento o marca da bollo telematica).
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIuv'
+        - in: path
+          name: iur
+          description: Identificativo univoco di riscossione.
+          required: true
+          schema:
+            type: string
+        - in: path
+          name: indice
+          description: >-
+            Indice posizionale della voce di pendenza riscossa all'interno
+            del pagamento.
+          required: true
+          schema:
+            type: integer
+            format: int32
+            minimum: 1
+      responses:
+        '200':
+          description: Dettaglio della riscossione
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Riscossione'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  # ============================================================
+  # RICONCILIAZIONI
+  # ============================================================
+
+  '/riconciliazioni/{idDominio}':
+    get:
+      tags:
+        - Riconciliazioni
+      summary: Elenco delle riconciliazioni
+      operationId: findRiconciliazioni
+      description: >-
+        Fornisce l'elenco dei movimenti di cassa riconciliati per l'Ente
+        Creditore. Ordinamento predefinito: `data:desc`. Campi ordinabili:
+        `data`, `dataValuta`, `dataContabile`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/dataDa'
+        - $ref: '#/components/parameters/dataA'
+        - name: sct
+          in: query
+          description: >-
+            Identificativo del Sepa Credit Transfer di riversamento dal PSP
+            al conto di accredito.
+          required: false
+          schema:
+            type: string
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - $ref: '#/components/parameters/total'
+      responses:
+        '200':
+          description: Elenco delle riconciliazioni che rispettano i filtri di ricerca
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Riconciliazioni'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/riconciliazioni/{idDominio}/{idRiconciliazione}':
+    put:
+      tags:
+        - Riconciliazioni
+      summary: Riconciliazione di un movimento di cassa
+      operationId: addRiconciliazione
+      description: >-
+        Registra un movimento di cassa (riversamento sul conto di
+        tesoreria) e lo riconcilia con le riscossioni corrispondenti,
+        individuate per IUV, per identificativo del flusso di
+        rendicontazione o tramite la causale bancaria del riversamento.
+        Se l'elaborazione si completa entro i tempi della richiesta
+        restituisce la riconciliazione (200), altrimenti la accetta per
+        l'elaborazione asincrona (202): l'esito si consulta con
+        `GET /riconciliazioni/{idDominio}/{idRiconciliazione}`.
+
+        L'operazione è idempotente: se la riconciliazione esiste già con
+        gli stessi dati viene restituita quella registrata, se esiste con
+        dati diversi la richiesta fallisce con `409`. Con l'header
+        `If-None-Match: *` la richiesta fallisce con `412` se la
+        riconciliazione esiste già, indipendentemente dai dati.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIdRiconciliazione'
+        - $ref: '#/components/parameters/IfNoneMatch'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NuovaRiconciliazione'
+            examples:
+              causale:
+                summary: Riconciliazione tramite causale bancaria
+                value:
+                  importo: 100.01
+                  dataValuta: '2020-12-31'
+                  dataContabile: '2020-12-31'
+                  contoAccredito: IT60X0542811101000000123456
+                  sct: '2017-01-01ABI00000011234'
+                  causale: '/PUR/LGPE-RIVERSAMENTO/URI/2020-11-21GovPAYPsp-1234567890'
+      responses:
+        '200':
+          description: Riconciliazione eseguita
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Riconciliazione'
+        '202':
+          description: Richiesta accettata, in elaborazione
+          headers:
+            Location:
+              description: URI assoluto della riconciliazione da cui consultarne l'esito
+              schema:
+                type: string
+                format: uri
+              example: 'https://govpay.example.it/govpay/backend/api/riconciliazioni/rs/basic/v1/riconciliazioni/01234567890/12345'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '409':
+          $ref: '#/components/responses/409Conflict'
+        '412':
+          $ref: '#/components/responses/412PreconditionFailed'
+        '415':
+          $ref: '#/components/responses/415UnsupportedMediaType'
+        '422':
+          $ref: '#/components/responses/422UnprocessableEntity'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+    get:
+      tags:
+        - Riconciliazioni
+      summary: Dettaglio di una riconciliazione
+      operationId: getRiconciliazione
+      description: >-
+        Fornisce i dati di un movimento di cassa riconciliato. Le
+        riscossioni riconciliate si recuperano tramite
+        `GET /riconciliazioni/{idDominio}/{idRiconciliazione}/riscossioni`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIdRiconciliazione'
+      responses:
+        '200':
+          description: Dettaglio della riconciliazione
+          headers:
+            ETag:
+              $ref: '#/components/headers/ETag'
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Riconciliazione'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/riconciliazioni/{idDominio}/{idRiconciliazione}/riscossioni':
+    get:
+      tags:
+        - Riconciliazioni
+      summary: Elenco delle riscossioni di una riconciliazione
+      operationId: findRiscossioniRiconciliazione
+      description: >-
+        Fornisce le riscossioni riconciliate con il movimento di cassa.
+        Ordinamento predefinito: `data:asc`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIdRiconciliazione'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - $ref: '#/components/parameters/total'
+      responses:
+        '200':
+          description: Elenco delle riscossioni riconciliate
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Riscossioni'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  # ============================================================
+  # RICEVUTE
+  # ============================================================
+
+  '/ricevute/{idDominio}':
+    get:
+      tags:
+        - Ricevute
+      summary: Elenco delle ricevute di pagamento
+      operationId: findRicevute
+      description: >-
+        Fornisce l'elenco delle ricevute di pagamento (RT) ricevute da
+        pagoPA per l'Ente Creditore. Il contenuto di ciascuna ricevuta si
+        recupera tramite `GET /ricevute/{idDominio}/{iuv}/{idRicevuta}`.
+        Ordinamento predefinito: `data:desc`. Campi ordinabili: `data`,
+        `dataPagamento`.
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/dataDa'
+        - $ref: '#/components/parameters/dataA'
+        - $ref: '#/components/parameters/iuv'
+        - name: idRicevuta
+          in: query
+          description: >-
+            Identificativo della ricevuta: corrisponde al `receiptId`
+            oppure al `ccp` a seconda del modello di pagamento.
+          required: false
+          schema:
+            type: string
+        - name: numeroAvviso
+          in: query
+          description: Numero dell'avviso di pagamento pagoPA.
+          required: false
+          schema:
+            $ref: '#/components/schemas/NumeroAvviso'
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/cursor'
+        - $ref: '#/components/parameters/limit'
+        - $ref: '#/components/parameters/sort'
+        - $ref: '#/components/parameters/fields'
+        - $ref: '#/components/parameters/total'
+      responses:
+        '200':
+          description: Elenco delle ricevute che rispettano i filtri di ricerca
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ricevute'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  '/ricevute/{idDominio}/{iuv}/{idRicevuta}':
+    get:
+      tags:
+        - Ricevute
+      summary: Ricevuta di pagamento
+      operationId: getRicevuta
+      description: >-
+        Fornisce una ricevuta di pagamento (RT), così come ricevuta da
+        pagoPA. La forma varia in base al campo `tipo`, che indica il
+        formato XML pagoPA da cui la ricevuta è stata convertita
+        (`ctRicevutaTelematica`, `ctReceipt` o `ctReceiptV2`, ciascuno con
+        i propri campi).
+      parameters:
+        - $ref: '#/components/parameters/PathIdDominio'
+        - $ref: '#/components/parameters/PathIuv'
+        - in: path
+          name: idRicevuta
+          description: >-
+            Identificativo della ricevuta: corrisponde al `receiptId`
+            oppure al `ccp` a seconda del modello di pagamento.
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Ricevuta di pagamento
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Ricevuta'
+        '400':
+          $ref: '#/components/responses/400BadRequest'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '403':
+          $ref: '#/components/responses/403NotAuthorized'
+        '404':
+          $ref: '#/components/responses/404NotFound'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  # ============================================================
+  # UTENTI
+  # ============================================================
+
+  '/profilo':
+    get:
+      tags:
+        - Utenti
+      summary: Profilo dell'utenza chiamante
+      operationId: getProfilo
+      description: >-
+        Fornisce i domini, le tipologie di pendenza e le autorizzazioni
+        associate all'utenza chiamante.
+      responses:
+        '200':
+          description: Profilo dell'utenza chiamante
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+            X-RateLimit-Limit:
+              $ref: '#/components/headers/XRateLimitLimit'
+            X-RateLimit-Remaining:
+              $ref: '#/components/headers/XRateLimitRemaining'
+            X-RateLimit-Reset:
+              $ref: '#/components/headers/XRateLimitReset'
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Profilo'
+        '401':
+          $ref: '#/components/responses/401NotAuthenticated'
+        '429':
+          $ref: '#/components/responses/429TooManyRequests'
+        '500':
+          $ref: '#/components/responses/500InternalServerError'
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+
+  # ============================================================
+  # STATO DEL SERVIZIO
+  # ============================================================
+
+  '/status':
+    get:
+      tags:
+        - Servizio
+      summary: Stato del servizio
+      operationId: getStatus
+      description: >-
+        Restituisce lo stato del servizio. Non richiede autenticazione.
+      security: []
+      responses:
+        '200':
+          description: Il servizio funziona correttamente
+          headers:
+            Cache-Control:
+              $ref: '#/components/headers/CacheControl'
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+              examples:
+                default:
+                  value:
+                    status: 200
+                    title: Servizio disponibile
+        '503':
+          $ref: '#/components/responses/503ServiceUnavailable'
+        default:
+          description: Il servizio ha riscontrato un problema
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/Problem'
+
+components:
+
+  securitySchemes:
+    basicAuth:
+      type: http
+      scheme: basic
+
+  parameters:
+    PathIdDominio:
+      name: idDominio
+      in: path
+      description: >-
+        Identificativo dell'Ente Creditore in pagoPA. Corrisponde al codice
+        fiscale.
+      required: true
+      schema:
+        $ref: '#/components/schemas/IdDominio'
+    PathIdFlusso:
+      name: idFlusso
+      in: path
+      description: Identificativo del flusso di rendicontazione.
+      required: true
+      schema:
+        type: string
+    PathIuv:
+      name: iuv
+      in: path
+      description: Identificativo univoco di versamento.
+      required: true
+      schema:
+        $ref: '#/components/schemas/Iuv'
+    PathIdRiconciliazione:
+      name: idRiconciliazione
+      in: path
+      description: >-
+        Identificativo della riconciliazione, assegnato dal chiamante.
+        Richieste ripetute con lo stesso identificativo restituiscono la
+        riconciliazione già registrata.
+      required: true
+      schema:
+        type: string
+        pattern: '^[0-9A-Za-z]{1,35}$'
+    dataFlusso:
+      name: dataFlusso
+      in: query
+      description: >-
+        Data di emissione della revisione del flusso da considerare. Se
+        assente, si considera la revisione più recente.
+      required: false
+      schema:
+        type: string
+        format: date-time
+    dataDa:
+      name: dataDa
+      in: query
+      description: Inizio della finestra temporale di osservazione (inclusa).
+      required: false
+      schema:
+        type: string
+        format: date-time
+    dataA:
+      name: dataA
+      in: query
+      description: Fine della finestra temporale di osservazione (inclusa).
+      required: false
+      schema:
+        type: string
+        format: date-time
+    iuv:
+      name: iuv
+      in: query
+      description: Identificativo univoco di versamento.
+      required: false
+      schema:
+        $ref: '#/components/schemas/Iuv'
+    fields:
+      name: fields
+      in: query
+      description: >-
+        Elenco separato da virgole dei campi da restituire per ciascun
+        risultato, per limitare la dimensione della risposta.
+      required: false
+      schema:
+        type: string
+    page:
+      name: page
+      in: query
+      description: >-
+        Numero di pagina (1-based), in modalità di paginazione a offset.
+        Alternativo a `cursor`: non è consentito specificare entrambi
+        nella stessa richiesta. Se nessuno dei due è specificato, si
+        applica la modalità a offset con `page=1`.
+      required: false
+      schema:
+        type: integer
+        format: int32
+        minimum: 1
+        default: 1
+      example: 1
+    cursor:
+      name: cursor
+      in: query
+      description: >-
+        Cursore opaco (il valore `nextCursor` della risposta precedente)
+        da cui continuare l'elenco, in modalità di paginazione a cursore
+        (keyset). In questa modalità l'ordinamento dei risultati è quello
+        fisso previsto per la risorsa. Mutuamente esclusivo con `page`
+        esplicito, `sort` esplicito e `total=true`: la loro combinazione
+        restituisce `400`, come un cursore malformato.
+      required: false
+      schema:
+        type: string
+    total:
+      name: total
+      in: query
+      description: >-
+        Se `true`, calcola e restituisce in `pagination.totalResults` e
+        `pagination.totalPages` il conteggio complessivo dei risultati
+        che rispettano i filtri di ricerca (richiede una query aggiuntiva
+        di conteggio, sconsigliata su risorse grandi). Non ammesso in
+        modalità cursore (`400`).
+      required: false
+      schema:
+        type: boolean
+        default: false
+      example: false
+    limit:
+      name: limit
+      in: query
+      description: Numero massimo di risultati per pagina (max 200).
+      required: false
+      schema:
+        $ref: '#/components/schemas/Limit'
+    sort:
+      name: sort
+      in: query
+      description: >-
+        Criterio di ordinamento dei risultati: uno o più campi nella
+        forma `campo:asc` o `campo:desc`, separati da virgola (priorità
+        nell'ordine specificato). I campi ammessi sono documentati per
+        ogni operazione. Se assente, si applica l'ordinamento predefinito
+        della risorsa. Non ammesso in modalità cursore (`400`), dove
+        l'ordinamento è quello fisso previsto per la risorsa.
+      required: false
+      schema:
+        type: string
+      example: 'data:desc'
+    IfNoneMatch:
+      name: If-None-Match
+      in: header
+      description: >-
+        Con valore `*` la riconciliazione viene registrata solo se non
+        esiste già: in caso contrario la richiesta fallisce con `412`.
+      required: false
+      schema:
+        type: string
+        enum:
+          - '*'
+
+  headers:
+    CacheControl:
+      description: >-
+        Le risposte non devono essere memorizzate in cache, perché possono
+        contenere dati personali (ad esempio i dati del debitore nelle
+        ricevute).
+      schema:
+        type: string
+      example: no-store
+    ETag:
+      description: Identificatore opaco della versione della risorsa.
+      schema:
+        type: string
+      example: '"a1b2c3"'
+    XRateLimitLimit:
+      description: Numero massimo di richieste ammesse nella finestra corrente.
+      schema:
+        type: integer
+        format: int32
+      example: 100
+    XRateLimitRemaining:
+      description: Numero di richieste rimanenti fino al prossimo reset.
+      schema:
+        type: integer
+        format: int32
+      example: 99
+    XRateLimitReset:
+      description: Numero di secondi che mancano al prossimo reset.
+      schema:
+        type: integer
+        format: int32
+      example: 60
+    RetryAfter:
+      description: Numero di secondi dopo i quali è possibile ripetere la richiesta.
+      schema:
+        type: integer
+        format: int32
+      example: 60
+
+  responses:
+    400BadRequest:
+      description: Richiesta non valida
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 400
+                title: Richiesta non valida
+                detail: "Il parametro 'dataDa' non è una data valida"
+    401NotAuthenticated:
+      description: Utenza non autenticata
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 401
+                title: Utenza non autenticata
+    403NotAuthorized:
+      description: Utenza non autorizzata a eseguire l'operazione richiesta
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 403
+                title: Utenza non autorizzata a eseguire l'operazione richiesta
+    404NotFound:
+      description: Risorsa non trovata
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 404
+                title: Risorsa non trovata
+    422UnprocessableEntity:
+      description: >-
+        Richiesta formalmente corretta ma non eseguibile (ad esempio
+        riscossioni non trovate o importo non corrispondente)
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 422
+                title: Operazione non eseguibile
+                detail: "L'importo del riversamento non corrisponde a quello dei pagamenti riconciliati"
+    500InternalServerError:
+      description: Errore interno del servizio
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 500
+                title: Errore interno del servizio
+                type: 'https://govpay.readthedocs.io/it/latest/manuale/errori/INTERNO'
+    409Conflict:
+      description: >-
+        Esiste già una riconciliazione con lo stesso identificativo ma con
+        dati diversi da quelli della richiesta
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 409
+                title: Risorsa già esistente
+    412PreconditionFailed:
+      description: >-
+        Precondizione non soddisfatta (`If-None-Match: *` e risorsa già
+        esistente)
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 412
+                title: Precondizione non soddisfatta
+    415UnsupportedMediaType:
+      description: Content-Type della richiesta non supportato
+      headers:
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 415
+                title: Content-Type non supportato
+    429TooManyRequests:
+      description: Raggiunto il limite di richieste consentite
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+        X-RateLimit-Limit:
+          $ref: '#/components/headers/XRateLimitLimit'
+        X-RateLimit-Remaining:
+          $ref: '#/components/headers/XRateLimitRemaining'
+        X-RateLimit-Reset:
+          $ref: '#/components/headers/XRateLimitReset'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 429
+                title: Troppe richieste
+    503ServiceUnavailable:
+      description: Servizio temporaneamente non disponibile (sovraccarico o manutenzione)
+      headers:
+        Retry-After:
+          $ref: '#/components/headers/RetryAfter'
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+          examples:
+            default:
+              value:
+                status: 503
+                title: Servizio temporaneamente non disponibile
+
+  schemas:
+
+    # ============================================================
+    # TIPI COMUNI
+    # ============================================================
+
+    IdDominio:
+      type: string
+      pattern: '^[0-9]{11}$'
+      description: Identificativo dell'Ente Creditore in pagoPA. Corrisponde al codice fiscale.
+      examples:
+        - '01234567890'
+
+    Iuv:
+      type: string
+      pattern: '^[0-9A-Za-z]{1,35}$'
+      description: Identificativo univoco di versamento.
+      examples:
+        - '01000000000012345'
+
+    NumeroAvviso:
+      type: string
+      pattern: '^[0-9]{18}$'
+      description: Numero dell'avviso di pagamento pagoPA.
+      examples:
+        - '301000000000012345'
+
+    Segnalazione:
+      type: object
+      description: Anomalia rilevata durante l'acquisizione.
+      required:
+        - codice
+        - descrizione
+      properties:
+        data:
+          type: string
+          format: date-time
+          description: Data di rilevazione dell'anomalia.
+          examples:
+            - '2020-12-31T12:53:49Z'
+        codice:
+          type: string
+          description: Codice dell'anomalia.
+          examples:
+            - '007101'
+        descrizione:
+          type: string
+          description: Descrizione dell'anomalia.
+          examples:
+            - Pagamento rendicontato senza RPT
+        dettaglio:
+          type: string
+          description: Dettaglio dell'anomalia.
+          examples:
+            - Acquisita rendicontazione senza RPT nel flusso ABC-1234-DEFG
+
+    RiferimentoVocePendenza:
+      type: object
+      description: >-
+        Riferimento alla voce di pendenza a cui si riferisce l'importo. Il
+        dettaglio della pendenza si recupera tramite le API Pendenze
+        (`GET /pendenze/{idA2A}/{idPendenza}`).
+      required:
+        - idA2A
+        - idPendenza
+        - idVocePendenza
+      properties:
+        idA2A:
+          type: string
+          description: Identificativo del gestionale proprietario della pendenza.
+          examples:
+            - IdA2A-001
+        idPendenza:
+          type: string
+          description: Identificativo della pendenza nel gestionale proprietario.
+          examples:
+            - A12345-001
+        idVocePendenza:
+          type: string
+          description: Identificativo della voce di pendenza nel gestionale proprietario.
+          examples:
+            - A12345-001_1
+        numeroAvviso:
+          $ref: '#/components/schemas/NumeroAvviso'
+        idDominio:
+          $ref: '#/components/schemas/IdDominio'
+          description: >-
+            Ente Creditore beneficiario della voce, se diverso da quello
+            della pendenza (ad esempio per le voci di competenza di un altro
+            ente, come la TEFA nella TARI).
+        descrizione:
+          type: string
+          description: Descrizione della voce di pendenza.
+          examples:
+            - Sanzione CdS n. abc00000
+
+    # ============================================================
+    # FLUSSI DI RENDICONTAZIONE
+    # ============================================================
+
+    FlussiRendicontazione:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/FlussoRendicontazione'
+
+    FlussoRendicontazione:
+      type: object
+      description: >-
+        Dati di testata di una revisione di un flusso di rendicontazione.
+        Le rendicontazioni si recuperano tramite
+        `GET /flussi-rendicontazione/{idDominio}/{idFlusso}/rendicontazioni`.
+      required:
+        - idFlusso
+        - dataFlusso
+        - data
+        - trn
+        - dataRegolamento
+        - idPsp
+        - numeroPagamenti
+        - importoTotale
+        - stato
+        - obsoleto
+      properties:
+        idFlusso:
+          type: string
+          description: Identificativo del flusso di rendicontazione.
+          examples:
+            - 2017-11-21GovPAYPsp1-10:27:27.903
+        dataFlusso:
+          type: string
+          format: date-time
+          description: Data di emissione del flusso. Identifica la revisione del flusso.
+          examples:
+            - '2020-12-31T10:27:27.903Z'
+        data:
+          type: string
+          format: date-time
+          description: Data di acquisizione del flusso.
+          examples:
+            - '2020-12-31T10:30:00Z'
+        revisione:
+          type: integer
+          format: int64
+          description: Numero di revisione del flusso.
+          examples:
+            - 1
+        dataOraPubblicazione:
+          type: string
+          format: date-time
+          description: Data di pubblicazione del flusso.
+          examples:
+            - '2020-12-31T10:27:27.903Z'
+        dataOraAggiornamento:
+          type: string
+          format: date-time
+          description: Data di aggiornamento del flusso.
+          examples:
+            - '2020-12-31T10:27:27.903Z'
+        obsoleto:
+          type: boolean
+          description: Indica se la revisione è stata superata da una revisione successiva.
+          examples:
+            - false
+        trn:
+          type: string
+          description: >-
+            Identificativo dell'operazione di riversamento assegnato dal PSP
+            debitore.
+          examples:
+            - idriversamento12345
+        dataRegolamento:
+          type: string
+          format: date-time
+          description: Data dell'operazione di riversamento fondi.
+          examples:
+            - '2020-12-31T10:27:27.903Z'
+        idPsp:
+          type: string
+          description: Identificativo dell'istituto mittente.
+          examples:
+            - ABI-12345
+        bicRiversamento:
+          type: string
+          description: Codice BIC della banca che ha generato il riversamento.
+          examples:
+            - BIC-12345
+        numeroPagamenti:
+          type: integer
+          format: int64
+          description: Numero di pagamenti oggetto della rendicontazione.
+          examples:
+            - 3
+        importoTotale:
+          type: number
+          format: double
+          description: Somma degli importi rendicontati.
+          examples:
+            - 100.01
+        stato:
+          $ref: '#/components/schemas/StatoFlussoRendicontazione'
+        segnalazioni:
+          type: array
+          description: Anomalie rilevate durante l'acquisizione del flusso.
+          items:
+            $ref: '#/components/schemas/Segnalazione'
+
+    StatoFlussoRendicontazione:
+      description: >-
+        Stato del flusso di rendicontazione, allineato ai valori di
+        `fr.stato` (come nelle API Pendenze).
+      type: string
+      enum:
+        - ACCETTATA
+        - ANOMALA
+        - RIFIUTATA
+      examples:
+        - ACCETTATA
+
+    Rendicontazioni:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Rendicontazione'
+
+    Rendicontazione:
+      type: object
+      description: >-
+        Occorrenza di pagamento all'interno di un flusso di
+        rendicontazione. La riscossione corrispondente, se presente, si
+        recupera tramite `GET /riscossioni/{idDominio}/{iuv}/{iur}/{indice}`.
+      required:
+        - iuv
+        - iur
+        - importo
+        - esito
+        - data
+        - stato
+      properties:
+        iuv:
+          $ref: '#/components/schemas/Iuv'
+        iur:
+          type: string
+          description: Identificativo univoco di riscossione.
+          examples:
+            - 1234acdc
+        indice:
+          type: integer
+          format: int32
+          description: >-
+            Indice dell'occorrenza del pagamento all'interno della struttura
+            `datiSingoloPagamento` della ricevuta telematica.
+          examples:
+            - 1
+        importo:
+          type: number
+          format: double
+          description: Importo rendicontato.
+          examples:
+            - 10.01
+        esito:
+          type: string
+          description: "Codice di esito dell'operazione rendicontata, come riportato nel flusso pagoPA (`codiceEsitoSingoloPagamento`):\n * 0 = Pagamento eseguito\n * 3 = Pagamento revocato\n * 4 = Pagamento eseguito in standin\n * 8 = Pagamento eseguito in standin, in assenza di RPT\n * 9 = Pagamento eseguito in assenza di RPT"
+          enum:
+            - '0'
+            - '3'
+            - '4'
+            - '8'
+            - '9'
+          examples:
+            - '0'
+        data:
+          type: string
+          format: date
+          description: Data di esito.
+          examples:
+            - '2020-12-31'
+        stato:
+          $ref: '#/components/schemas/StatoRendicontazione'
+        segnalazioni:
+          type: array
+          description: Anomalie rilevate durante l'acquisizione della rendicontazione.
+          items:
+            $ref: '#/components/schemas/Segnalazione'
+        vocePendenza:
+          $ref: '#/components/schemas/RiferimentoVocePendenza'
+
+    StatoRendicontazione:
+      description: Stato della rendicontazione.
+      type: string
+      enum:
+        - OK
+        - ANOMALA
+        - ALTRO_INTERMEDIARIO
+      examples:
+        - OK
+
+    # ============================================================
+    # RISCOSSIONI
+    # ============================================================
+
+    Riscossioni:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/RiscossioneIndex'
+
+    RiscossioneIndex:
+      type: object
+      description: >-
+        Importo riscosso per una voce di pendenza. I campi `iuv`, `iur`,
+        `indice`, `tipo`, `importo` e `data` sono assenti se e solo se la
+        riscossione deriva da una rendicontazione con esito 9 (pagamento
+        in assenza di RPT).
+      required:
+        - idDominio
+        - stato
+      properties:
+        idDominio:
+          $ref: '#/components/schemas/IdDominio'
+        iuv:
+          $ref: '#/components/schemas/Iuv'
+        iur:
+          type: string
+          description: Identificativo univoco di riscossione.
+          examples:
+            - 1234acdc
+        indice:
+          type: integer
+          format: int32
+          description: Indice posizionale della voce di pendenza riscossa.
+          examples:
+            - 1
+        idRicevuta:
+          type: string
+          description: >-
+            Identificativo della ricevuta: corrisponde al `receiptId`
+            oppure al `ccp` a seconda del modello di pagamento.
+          examples:
+            - ab12345
+        stato:
+          $ref: '#/components/schemas/StatoRiscossione'
+        tipo:
+          $ref: '#/components/schemas/TipoRiscossione'
+        importo:
+          type: number
+          format: double
+          description: Importo riscosso.
+          examples:
+            - 10.01
+        data:
+          type: string
+          format: date-time
+          description: Data di esecuzione della riscossione.
+          examples:
+            - '2020-12-31T12:55:12Z'
+        vocePendenza:
+          $ref: '#/components/schemas/RiferimentoVocePendenza'
+
+    Riscossione:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/RiscossioneIndex'
+        - type: object
+          properties:
+            allegato:
+              $ref: '#/components/schemas/AllegatoRiscossione'
+
+    AllegatoRiscossione:
+      type: object
+      description: Documento allegato alla riscossione.
+      required:
+        - tipo
+        - testo
+      properties:
+        tipo:
+          type: string
+          description: Tipologia di allegato.
+          enum:
+            - ESITO_PAGAMENTO
+            - MARCA_DA_BOLLO
+          examples:
+            - MARCA_DA_BOLLO
+        testo:
+          type: string
+          contentEncoding: base64
+          description: Contenuto dell'allegato codificato in base64.
+
+    StatoRiscossione:
+      description: >-
+        Stato della riscossione:
+         * RISCOSSA: importo riscosso, non ancora riconciliato
+         * INCASSATA: importo riconciliato con un movimento di cassa
+      type: string
+      enum:
+        - RISCOSSA
+        - INCASSATA
+      examples:
+        - RISCOSSA
+
+    TipoRiscossione:
+      description: >-
+        Tipologia della voce riscossa:
+         * ENTRATA: entrata in tesoreria
+         * MBT: marca da bollo telematica
+         * ALTRO_INTERMEDIARIO: entrata relativa a un intermediario esterno
+         * ENTRATA_PA_NON_INTERMEDIATA: entrata relativa a un ente creditore non intermediato da GovPay
+      type: string
+      enum:
+        - ENTRATA
+        - MBT
+        - ALTRO_INTERMEDIARIO
+        - ENTRATA_PA_NON_INTERMEDIATA
+      examples:
+        - ENTRATA
+
+    # ============================================================
+    # RICONCILIAZIONI
+    # ============================================================
+
+    NuovaRiconciliazione:
+      type: object
+      description: >-
+        Movimento di cassa da riconciliare. Le riscossioni da riconciliare
+        sono individuate da uno, e uno solo, tra `iuv`,
+        `idFlussoRendicontazione` e `causale`.
+      required:
+        - importo
+        - sct
+      properties:
+        importo:
+          type: number
+          format: double
+          description: >-
+            Importo del riversamento: viene verificato che corrisponda a
+            quello dei pagamenti riconciliati.
+          examples:
+            - 100.01
+        dataValuta:
+          type: string
+          format: date
+          description: Data di valuta dell'incasso.
+          examples:
+            - '2020-12-31'
+        dataContabile:
+          type: string
+          format: date
+          description: Data contabile dell'incasso.
+          examples:
+            - '2020-12-31'
+        contoAccredito:
+          type: string
+          description: >-
+            Identificativo del conto di tesoreria su cui sono stati
+            incassati i fondi.
+          examples:
+            - IT60X0542811101000000123456
+        sct:
+          type: string
+          description: Identificativo del Sepa Credit Transfer.
+          examples:
+            - 2017-01-01ABI00000011234
+        iuv:
+          $ref: '#/components/schemas/Iuv'
+        idFlussoRendicontazione:
+          type: string
+          description: Identificativo del flusso di rendicontazione riversato.
+          examples:
+            - 2017-11-21GovPAYPsp1-10:27:27.903
+        causale:
+          type: string
+          description: >-
+            Causale bancaria del Sepa Credit Transfer di riversamento dal
+            PSP al conto di accredito, da cui GovPay ricava lo IUV o
+            l'identificativo del flusso.
+          examples:
+            - /PUR/LGPE-RIVERSAMENTO/URI/2017-01-01ABI00000011234
+      oneOf:
+        - required: [iuv]
+        - required: [idFlussoRendicontazione]
+        - required: [causale]
+
+    Riconciliazioni:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/Riconciliazione'
+
+    Riconciliazione:
+      type: object
+      description: >-
+        Movimento di cassa riconciliato. Le riscossioni riconciliate si
+        recuperano tramite
+        `GET /riconciliazioni/{idDominio}/{idRiconciliazione}/riscossioni`.
+      required:
+        - idRiconciliazione
+        - idDominio
+        - stato
+        - data
+      properties:
+        idRiconciliazione:
+          type: string
+          description: Identificativo della riconciliazione.
+          examples:
+            - '12345'
+        idDominio:
+          $ref: '#/components/schemas/IdDominio'
+        stato:
+          $ref: '#/components/schemas/StatoRiconciliazione'
+        descrizioneStato:
+          type: string
+          description: Dettaglio dello stato della riconciliazione (ad esempio la causa dell'errore).
+        data:
+          type: string
+          format: date-time
+          description: Data di esecuzione della riconciliazione.
+          examples:
+            - '2020-12-31T12:00:00Z'
+        importo:
+          type: number
+          format: double
+          description: Importo del riversamento.
+          examples:
+            - 100.01
+        dataValuta:
+          type: string
+          format: date
+          description: Data di valuta dell'incasso.
+          examples:
+            - '2020-12-31'
+        dataContabile:
+          type: string
+          format: date
+          description: Data contabile dell'incasso.
+          examples:
+            - '2020-12-31'
+        contoAccredito:
+          type: string
+          description: >-
+            Identificativo del conto di tesoreria su cui sono stati
+            incassati i fondi.
+          examples:
+            - IT60X0542811101000000123456
+        sct:
+          type: string
+          description: Identificativo del Sepa Credit Transfer.
+          examples:
+            - 2017-01-01ABI00000011234
+        trn:
+          type: string
+          description: >-
+            Transaction reference number del riversamento, come indicato
+            nel flusso di rendicontazione.
+          examples:
+            - 2017-01-01ABI00000011234
+        causale:
+          type: string
+          description: >-
+            Causale bancaria del Sepa Credit Transfer di riversamento dal
+            PSP al conto di accredito.
+        iuv:
+          $ref: '#/components/schemas/Iuv'
+        idFlussoRendicontazione:
+          type: string
+          description: Identificativo del flusso di rendicontazione riconciliato.
+          examples:
+            - 2017-11-21GovPAYPsp1-10:27:27.903
+
+    StatoRiconciliazione:
+      description: >-
+        Stato della riconciliazione:
+         * IN_ELABORAZIONE: in elaborazione
+         * ACQUISITA: acquisizione completata con successo
+         * ERRORE: acquisizione completata con errore
+      type: string
+      enum:
+        - IN_ELABORAZIONE
+        - ACQUISITA
+        - ERRORE
+      examples:
+        - ACQUISITA
+
+    # ============================================================
+    # RICEVUTE
+    # ============================================================
+
+    Ricevute:
+      type: object
+      allOf:
+        - $ref: '#/components/schemas/PaginatedResponse'
+        - type: object
+          properties:
+            results:
+              type: array
+              items:
+                $ref: '#/components/schemas/RicevutaIndex'
+
+    RicevutaIndex:
+      type: object
+      description: >-
+        Riferimento a una ricevuta di pagamento (RT) emessa da pagoPA. Il
+        contenuto della ricevuta si recupera tramite
+        `GET /ricevute/{idDominio}/{iuv}/{idRicevuta}`.
+      required:
+        - idDominio
+        - iuv
+        - idRicevuta
+        - tipo
+        - data
+      properties:
+        idDominio:
+          $ref: '#/components/schemas/IdDominio'
+        iuv:
+          $ref: '#/components/schemas/Iuv'
+        idRicevuta:
+          type: string
+          description: >-
+            Identificativo della ricevuta: corrisponde al `receiptId`
+            oppure al `ccp` a seconda del modello di pagamento.
+          examples:
+            - ab12345
+        tipo:
+          $ref: '#/components/schemas/TipoRicevuta'
+        data:
+          type: string
+          format: date-time
+          description: Data di acquisizione della ricevuta.
+          examples:
+            - '2020-12-31T12:55:12Z'
+        dataPagamento:
+          type: string
+          format: date-time
+          description: Data di esecuzione del pagamento.
+          examples:
+            - '2020-12-31T12:55:12Z'
+        importo:
+          type: number
+          format: double
+          description: Importo pagato.
+          examples:
+            - 10.01
+        esito:
+          $ref: '#/components/schemas/EsitoPagamento'
+        modello:
+          $ref: '#/components/schemas/ModelloPagamento'
+        idA2A:
+          type: string
+          description: Identificativo del gestionale proprietario della pendenza pagata.
+          examples:
+            - IdA2A-001
+        idPendenza:
+          type: string
+          description: Identificativo della pendenza pagata nel gestionale proprietario.
+          examples:
+            - A12345-001
+        numeroAvviso:
+          $ref: '#/components/schemas/NumeroAvviso'
+
+    EsitoPagamento:
+      description: Esito della richiesta di pagamento.
+      type: string
+      enum:
+        - IN_CORSO
+        - RIFIUTATO
+        - ESEGUITO
+        - NON_ESEGUITO
+        - ESEGUITO_PARZIALE
+        - DECORRENZA
+        - DECORRENZA_PARZIALE
+      examples:
+        - ESEGUITO
+
+    ModelloPagamento:
+      description: >-
+        Modello di pagamento:
+         * ENTE: pagamento ad iniziativa dell'Ente
+         * PSP: pagamento ad iniziativa del PSP
+      type: string
+      enum:
+        - ENTE
+        - PSP
+      examples:
+        - PSP
+
+    # --- Ricevuta originale pagoPA (modelli condivisi con le API Pendenze) ---
+
+    TipoRicevuta:
+      type: string
+      description: >-
+        Formato XML della ricevuta: `ctRicevutaTelematica` è il formato
+        SANP storico, `ctReceipt` e `ctReceiptV2` sono i formati più
+        recenti del Nodo dei Pagamenti.
+      enum:
+        - ctRicevutaTelematica
+        - ctReceipt
+        - ctReceiptV2
+      examples:
+        - ctReceiptV2
+
+    Ricevuta:
+      type: object
+      description: >-
+        Ricevuta di pagamento (RT) originale emessa da pagoPA. La forma
+        varia in base al campo `tipo`, che identifica il formato XML
+        pagoPA da cui la ricevuta è stata convertita: ciascun formato ha
+        i propri campi. I nomi delle proprietà riproducono quelli degli
+        XSD pagoPA, per consentire il confronto diretto con il documento
+        originale: per questo alcune proprietà (ad esempio
+        `PSPCompanyName`, `IBAN`, `MBDAttachment`) non seguono lo stile
+        camelCase del resto dell'API.
+      required: [tipo]
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoRicevuta'
+      oneOf:
+        - $ref: '#/components/schemas/RicevutaCtRicevutaTelematica'
+        - $ref: '#/components/schemas/RicevutaCtReceipt'
+        - $ref: '#/components/schemas/RicevutaCtReceiptV2'
+      discriminator:
+        propertyName: tipo
+        mapping:
+          ctRicevutaTelematica: '#/components/schemas/RicevutaCtRicevutaTelematica'
+          ctReceipt: '#/components/schemas/RicevutaCtReceipt'
+          ctReceiptV2: '#/components/schemas/RicevutaCtReceiptV2'
+
+    # --- ctRicevutaTelematica (formato SANP storico) ---
+
+    TipoIdentificativoUnivocoRT:
+      description: >-
+        Natura del codice che identifica il soggetto in una ricevuta ctRicevutaTelematica
+        (SANP 2.3.0): F persona fisica, G persona giuridica (soggetto versante/pagatore o
+        ente beneficiario), A codice ABI, B codice BIC (istituto attestante — qui la natura
+        del codice e il tipo di soggetto, non sovrapponibile a TipoSoggetto, che modella solo
+        persona fisica/giuridica).
+      type: string
+      enum:
+        - F
+        - G
+        - A
+        - B
+      examples:
+        - G
+
+    RTIdentificativoUnivoco:
+      type: object
+      required:
+        - tipoIdentificativoUnivoco
+        - codiceIdentificativoUnivoco
+      properties:
+        tipoIdentificativoUnivoco:
+          $ref: '#/components/schemas/TipoIdentificativoUnivocoRT'
+        codiceIdentificativoUnivoco:
+          type: string
+
+    RTAnagrafica:
+      type: object
+      description: >-
+        Anagrafica di un soggetto (versante, pagatore, ente beneficiario o
+        istituto attestante) come riportata nella ricevuta
+        `ctRicevutaTelematica`.
+      required:
+        - identificativoUnivoco
+        - denominazione
+      properties:
+        identificativoUnivoco:
+          $ref: '#/components/schemas/RTIdentificativoUnivoco'
+        denominazione:
+          type: string
+          description: Nominativo o ragione sociale del soggetto.
+        codiceUnitaOperativa:
+          type: string
+        denominazioneUnitaOperativa:
+          type: string
+        indirizzo:
+          type: string
+        civico:
+          type: string
+        cap:
+          type: string
+        localita:
+          type: string
+        provincia:
+          type: string
+        nazione:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: Codice della nazione (ISO 3166-1 alpha-2).
+          examples:
+            - IT
+        email:
+          type: string
+
+    RTAllegatoRicevuta:
+      type: object
+      required:
+        - tipoAllegatoRicevuta
+        - testoAllegato
+      properties:
+        tipoAllegatoRicevuta:
+          type: string
+          description: Tipo dell'allegato trasportato con la ricevuta.
+        testoAllegato:
+          type: string
+          format: byte
+          description: Contenuto dell'allegato, codificato in base64.
+
+    RTDatiSingoloPagamento:
+      type: object
+      required:
+        - singoloImportoPagato
+        - dataEsitoSingoloPagamento
+        - identificativoUnivocoRiscossione
+        - causaleVersamento
+        - datiSpecificiRiscossione
+      properties:
+        singoloImportoPagato:
+          type: number
+          format: double
+          description: Importo versato. Se il pagamento non è stato eseguito, vale 0.00.
+        esitoSingoloPagamento:
+          type: string
+          description: >-
+            Descrizione testuale dell'esito del singolo pagamento.
+            Presente se `singoloImportoPagato` vale 0.00.
+        dataEsitoSingoloPagamento:
+          type: string
+          format: date
+        identificativoUnivocoRiscossione:
+          type: string
+        causaleVersamento:
+          type: string
+        datiSpecificiRiscossione:
+          type: string
+          description: >-
+            Imputazione della specifica entrata, nella forma
+            "tipo contabilità"/"codice contabilità".
+        commissioniApplicatePSP:
+          type: number
+          format: double
+        commissioniApplicatePA:
+          type: number
+          format: double
+        allegatoRicevuta:
+          $ref: '#/components/schemas/RTAllegatoRicevuta'
+
+    RicevutaCtRicevutaTelematica:
+      type: object
+      description: Ricevuta nel formato XML SANP storico `ctRicevutaTelematica`.
+      required:
+        - tipo
+        - versioneOggetto
+        - dominio
+        - identificativoMessaggioRicevuta
+        - dataOraMessaggioRicevuta
+        - riferimentoMessaggioRichiesta
+        - riferimentoDataRichiesta
+        - istitutoAttestante
+        - enteBeneficiario
+        - soggettoPagatore
+        - datiPagamento
+      properties:
+        tipo:
+          $ref: '#/components/schemas/TipoRicevuta'
+        versioneOggetto:
+          type: string
+        dominio:
+          type: object
+          required:
+            - identificativoDominio
+          properties:
+            identificativoDominio:
+              type: string
+            identificativoStazioneRichiedente:
+              type: string
+        identificativoMessaggioRicevuta:
+          type: string
+        dataOraMessaggioRicevuta:
+          type: string
+          format: date-time
+        riferimentoMessaggioRichiesta:
+          type: string
+        riferimentoDataRichiesta:
+          type: string
+          format: date
+        istitutoAttestante:
+          $ref: '#/components/schemas/RTAnagrafica'
+        enteBeneficiario:
+          $ref: '#/components/schemas/RTAnagrafica'
+        soggettoVersante:
+          $ref: '#/components/schemas/RTAnagrafica'
+        soggettoPagatore:
+          $ref: '#/components/schemas/RTAnagrafica'
+        datiPagamento:
+          type: object
+          required:
+            - codiceEsitoPagamento
+            - importoTotalePagato
+            - identificativoUnivocoVersamento
+            - codiceContestoPagamento
+          properties:
+            codiceEsitoPagamento:
+              type: string
+              description: >-
+                Esito del pagamento:
+                 * 0 = Pagamento eseguito
+                 * 1 = Pagamento non eseguito
+                 * 2 = Pagamento parzialmente eseguito
+                 * 3 = Decorrenza termini
+                 * 4 = Decorrenza termini parziale
+              enum:
+                - '0'
+                - '1'
+                - '2'
+                - '3'
+                - '4'
+            importoTotalePagato:
+              type: number
+              format: double
+            identificativoUnivocoVersamento:
+              type: string
+            codiceContestoPagamento:
+              type: string
+            datiSingoloPagamento:
+              type: array
+              maxItems: 5
+              items:
+                $ref: '#/components/schemas/RTDatiSingoloPagamento'
+
+    # --- ctReceipt / ctReceiptV2 (formati recenti del Nodo dei Pagamenti) ---
+
+    RTMetadata:
+      type: array
+      description: Metadata pagoPA associati (Dizionario dei metadata).
+      items:
+        $ref: '#/components/schemas/RTMetadataEntry'
+
+    RTMetadataEntry:
+      type: object
+      required:
+        - chiave
+        - valore
+      properties:
+        chiave:
+          type: string
+        valore:
+          type: string
+
+    RTSubject:
+      type: object
+      required:
+        - uniqueIdentifier
+        - fullName
+      properties:
+        uniqueIdentifier:
+          type: object
+          required:
+            - entityUniqueIdentifierType
+            - entityUniqueIdentifierValue
+          properties:
+            entityUniqueIdentifierType:
+              $ref: '#/components/schemas/TipoSoggetto'
+            entityUniqueIdentifierValue:
+              type: string
+        fullName:
+          type: string
+        streetName:
+          type: string
+        civicNumber:
+          type: string
+        postalCode:
+          type: string
+        city:
+          type: string
+        stateProvinceRegion:
+          type: string
+        country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: Codice della nazione (ISO 3166-1 alpha-2).
+          examples:
+            - IT
+        email:
+          type: string
+
+    RTTransfer:
+      type: object
+      description: Transfer secondo il formato `ctReceipt`.
+      required:
+        - idTransfer
+        - transferAmount
+        - fiscalCodePA
+        - IBAN
+        - remittanceInformation
+        - transferCategory
+      properties:
+        idTransfer:
+          type: string
+        transferAmount:
+          type: number
+          format: double
+        fiscalCodePA:
+          type: string
+        IBAN:
+          type: string
+        remittanceInformation:
+          type: string
+        transferCategory:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/RTMetadata'
+
+    RTTransferV2:
+      type: object
+      description: Transfer secondo il formato `ctReceiptV2`.
+      required:
+        - idTransfer
+        - transferAmount
+        - fiscalCodePA
+        - remittanceInformation
+        - transferCategory
+      properties:
+        idTransfer:
+          type: string
+        transferAmount:
+          type: number
+          format: double
+        fiscalCodePA:
+          type: string
+        companyName:
+          type: string
+        IBAN:
+          type: string
+          description: Alternativo a `MBDAttachment`. Esattamente uno dei due è presente.
+        MBDAttachment:
+          type: string
+          format: byte
+          description: Alternativo a `IBAN`, codificato in base64. Esattamente uno dei due è presente.
+        remittanceInformation:
+          type: string
+        transferCategory:
+          type: string
+        metadata:
+          $ref: '#/components/schemas/RTMetadata'
+
+    RTReceiptBase:
+      type: object
+      description: Campi comuni a `ctReceipt` e `ctReceiptV2`, esclusi `tipo` e `transferList`.
+      required:
+        - receiptId
+        - noticeNumber
+        - fiscalCode
+        - outcome
+        - creditorReferenceId
+        - paymentAmount
+        - description
+        - companyName
+        - debtor
+        - idPSP
+        - PSPCompanyName
+        - idChannel
+        - channelDescription
+      properties:
+        receiptId:
+          type: string
+        noticeNumber:
+          type: string
+        fiscalCode:
+          type: string
+        outcome:
+          type: string
+          enum:
+            - OK
+            - KO
+        creditorReferenceId:
+          type: string
+        paymentAmount:
+          type: number
+          format: double
+        description:
+          type: string
+        companyName:
+          type: string
+        officeName:
+          type: string
+        debtor:
+          $ref: '#/components/schemas/RTSubject'
+        idPSP:
+          type: string
+        pspFiscalCode:
+          type: string
+        pspPartitaIVA:
+          type: string
+        PSPCompanyName:
+          type: string
+        idChannel:
+          type: string
+        channelDescription:
+          type: string
+        payer:
+          $ref: '#/components/schemas/RTSubject'
+        paymentMethod:
+          type: string
+        fee:
+          type: number
+          format: double
+        paymentDateTime:
+          type: string
+          format: date-time
+        applicationDate:
+          type: string
+          format: date
+        transferDate:
+          type: string
+          format: date
+        metadata:
+          $ref: '#/components/schemas/RTMetadata'
+        standIn:
+          type: boolean
+
+    RicevutaCtReceipt:
+      type: object
+      description: Ricevuta nel formato `ctReceipt` del Nodo dei Pagamenti.
+      allOf:
+        - $ref: '#/components/schemas/RTReceiptBase'
+        - type: object
+          required:
+            - tipo
+            - transferList
+          properties:
+            tipo:
+              $ref: '#/components/schemas/TipoRicevuta'
+            transferList:
+              type: array
+              maxItems: 5
+              items:
+                $ref: '#/components/schemas/RTTransfer'
+
+    RicevutaCtReceiptV2:
+      type: object
+      description: Ricevuta nel formato `ctReceiptV2` del Nodo dei Pagamenti.
+      allOf:
+        - $ref: '#/components/schemas/RTReceiptBase'
+        - type: object
+          required:
+            - tipo
+            - transferList
+          properties:
+            tipo:
+              $ref: '#/components/schemas/TipoRicevuta'
+            transferList:
+              type: array
+              maxItems: 5
+              items:
+                $ref: '#/components/schemas/RTTransferV2'
+            paymentNote:
+              type: string
+            primaryCiIncurredFee:
+              type: number
+              format: double
+            idBundle:
+              type: string
+            idCiBundle:
+              type: string
+
+    TipoSoggetto:
+      description: >-
+        tipologia di soggetto, se persona fisica (F) o giuridica (G)
+      type: string
+      enum:
+        - G
+        - F
+      examples:
+        - F
+
+    # ============================================================
+    # UTENTI
+    # ============================================================
+
+    Profilo:
+      type: object
+      description: Profilo e autorizzazioni dell'utenza chiamante.
+      required:
+        - nome
+        - domini
+        - tipiPendenza
+        - acl
+      properties:
+        nome:
+          type: string
+          description: Nome o principal dell'utenza.
+          examples:
+            - gestionale-ragioneria
+        domini:
+          type: array
+          description: Enti Creditori su cui l'utenza è abilitata a operare.
+          items:
+            $ref: '#/components/schemas/Dominio'
+        tipiPendenza:
+          type: array
+          description: Tipologie di pendenza su cui l'utenza è abilitata a operare.
+          items:
+            $ref: '#/components/schemas/TipoPendenza'
+        acl:
+          type: array
+          description: Autorizzazioni dell'utenza.
+          items:
+            $ref: '#/components/schemas/Acl'
+
+    Dominio:
+      type: object
+      required:
+        - idDominio
+      properties:
+        idDominio:
+          $ref: '#/components/schemas/IdDominio'
+        ragioneSociale:
+          type: string
+          description: Ragione sociale dell'Ente Creditore.
+          examples:
+            - Comune Dimostrativo
+
+    TipoPendenza:
+      type: object
+      required:
+        - idTipoPendenza
+        - descrizione
+      properties:
+        idTipoPendenza:
+          type: string
+          description: Identificativo della tipologia di pendenza.
+          examples:
+            - TARI
+        descrizione:
+          type: string
+          description: Descrizione della tipologia di pendenza.
+          examples:
+            - Tassa sui rifiuti
+
+    Acl:
+      type: object
+      required:
+        - servizio
+        - autorizzazioni
+      properties:
+        ruolo:
+          type: string
+          description: Ruolo a cui si applica l'autorizzazione.
+          examples:
+            - Operatore
+        principal:
+          type: string
+          description: Principal a cui si applica l'autorizzazione.
+          examples:
+            - user001
+        servizio:
+          $ref: '#/components/schemas/TipoServizio'
+        autorizzazioni:
+          type: array
+          description: Operazioni autorizzate sul servizio.
+          items:
+            type: string
+            enum:
+              - Lettura
+              - Scrittura
+          examples:
+            - [Lettura, Scrittura]
+
+    TipoServizio:
+      type: string
+      description: Servizio GovPay a cui si applica l'autorizzazione.
+      enum:
+        - Anagrafica PagoPA
+        - Anagrafica Creditore
+        - Anagrafica Applicazioni
+        - Anagrafica Ruoli
+        - Pagamenti
+        - Pendenze
+        - Rendicontazioni e Incassi
+        - Giornale degli Eventi
+        - Configurazione e manutenzione
+      examples:
+        - Rendicontazioni e Incassi
+
+    # ============================================================
+    # PAGINAZIONE
+    # ============================================================
+
+    Pagination:
+      type: object
+      description: >-
+        Metadati di paginazione a offset (richiesta con `page`, o senza
+        alcun parametro di paginazione): assenti in modalità cursore
+        (richiesta con `cursor`), dove l'unico metadato di paginazione è
+        `nextCursor`.
+      required:
+        - page
+        - limit
+        - hasNextPage
+      properties:
+        page:
+          type: integer
+          format: int32
+          minimum: 1
+          description: Numero della pagina restituita (1-based).
+          examples:
+            - 1
+        limit:
+          type: integer
+          format: int32
+          minimum: 1
+          maximum: 200
+          description: Numero massimo di risultati per pagina usato per produrre questa risposta.
+          examples:
+            - 25
+        hasNextPage:
+          type: boolean
+          description: Indica se esiste una pagina successiva.
+          examples:
+            - true
+        totalResults:
+          type: integer
+          format: int64
+          minimum: 0
+          description: >-
+            Numero totale di risultati che rispettano i filtri di
+            ricerca. Presente solo se richiesto con `total=true`.
+          examples:
+            - 100
+        totalPages:
+          type: integer
+          format: int32
+          minimum: 0
+          description: >-
+            Numero totale di pagine, calcolato da `totalResults` e
+            `limit`. Presente solo se richiesto con `total=true`.
+          examples:
+            - 4
+
+    PaginatedResponse:
+      type: object
+      description: >-
+        Busta generica di risposta per un elenco paginato, specializzata
+        per singola risorsa tramite `allOf` con l'array `results`
+        tipizzato. Riporta `pagination` in modalità a offset, `nextCursor`
+        in modalità a cursore (vedi parametri `page`/`cursor`): mai
+        entrambi. Le due modalità sono mutuamente esclusive e
+        l'esclusione è applicata dal servizio: `page` esplicito, `sort`
+        esplicito o `total=true` insieme a `cursor` restituiscono `400`.
+      required:
+        - results
+      properties:
+        results:
+          type: array
+          items: {}
+        pagination:
+          $ref: '#/components/schemas/Pagination'
+        nextCursor:
+          type: string
+          description: >-
+            Cursore opaco da passare come parametro `cursor` per ottenere
+            la pagina successiva, in modalità cursore. Assente se non
+            esistono altri risultati.
+
+    Limit:
+      type: integer
+      format: int32
+      minimum: 1
+      maximum: 200
+      default: 25
+
+    # ============================================================
+    # ERRORI
+    # ============================================================
+
+    Problem:
+      type: object
+      description: >-
+        Descrizione di un errore in formato "Problem Details for HTTP APIs"
+        (RFC 7807), come previsto dalle Linee guida di interoperabilità
+        AGID. Restituito con Content-Type `application/problem+json`.
+      required:
+        - status
+      properties:
+        type:
+          type: string
+          format: uri
+          description: >-
+            URI che identifica il tipo di errore GovPay, puntando alla
+            pagina del manuale che lo documenta: l'ultimo segmento del path
+            è il codice errore, da cui è univocamente ricavabile anche la
+            relativa categoria (consultando la stessa pagina). Se assente,
+            equivale a "about:blank", cioè il problema non ha semantica
+            oltre quella del codice di stato HTTP.
+          examples:
+            - 'https://govpay.readthedocs.io/it/latest/manuale/errori/INTERNO'
+        title:
+          type: string
+          description: >-
+            Riassunto sintetico e leggibile del tipo di problema, invariato
+            tra le diverse occorrenze dello stesso `type`.
+          examples:
+            - Richiesta non valida
+        status:
+          type: integer
+          format: int32
+          description: Codice di stato HTTP di questa occorrenza del problema.
+          examples:
+            - 400
+        detail:
+          type: string
+          description: >-
+            Spiegazione specifica di questa occorrenza del problema, utile
+            al debug (non è detto sia adatta a essere mostrata all'utente
+            finale).
+          examples:
+            - "Il parametro 'dataDa' non è una data valida"
+        instance:
+          type: string
+          format: uri
+          description: Identificatore URI di questa specifica occorrenza del problema.

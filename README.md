@@ -17,7 +17,7 @@ mvn clean install -P jar,dist
 
 Produce `target/govpay-riconciliazioni-api.jar` e `target/sql.zip` (script dello schema per dialetto). Con `-P war` produce invece il war.
 
-Il contratto delle API e' in `src/main/resources/openapi/openapi.yaml`: le interfacce e i modelli sono generati in fase di build (pacchetti `it.govpay.riconciliazioni.api` e `it.govpay.riconciliazioni.model`).
+Il contratto delle API e' in `src/main/resources/govpay-api-riconciliazioni.yaml`: le interfacce e i modelli sono generati in fase di build (pacchetti `it.govpay.riconciliazioni.api` e `it.govpay.riconciliazioni.model`).
 
 La pipeline CI/CD e' descritta in [.github/PIPELINE.md](.github/PIPELINE.md), l'immagine Docker in [docker/DOCKER.md](docker/DOCKER.md).
 
