@@ -328,7 +328,7 @@
                             <goal>generate</goal>
                         </goals>
                         <configuration>
-                            <inputSpec>${project.basedir}/src/main/resources/openapi/openapi.yaml</inputSpec>
+                            <inputSpec>${project.basedir}/src/main/resources/govpay-api-riconciliazioni.yaml</inputSpec>
                             <generatorName>spring</generatorName>
                             <apiPackage>it.govpay.riconciliazioni.api</apiPackage>
                             <modelPackage>it.govpay.riconciliazioni.model</modelPackage>
