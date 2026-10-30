@@ -45,7 +45,6 @@ L'elenco completo delle variabili dell'immagine, con obbligatorietà e default, 
 curl http://localhost:9090/actuator/health
 curl http://localhost:9090/actuator/prometheus
 docker logs -f govpay-riconciliazioni-api
-docker exec govpay-riconciliazioni-api cat /tmp/entrypoint_debug.log
 ```
 
 ## Struttura
