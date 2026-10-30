@@ -2,7 +2,7 @@
 
 ## Panoramica
 
-L'immagine `linkitaly/govpay-riconciliazioni-api` contiene il jar Spring Boot dell'API, gli script SQL dello schema in `/opt/sql/<dialetto>/` e l'entrypoint `docker/commons/entrypoint.sh`, che traduce le variabili `GOVPAY_*` nelle property Spring Boot.
+L'immagine `linkitaly/govpay-riconciliazioni-api` contiene il jar Spring Boot dell'API e l'entrypoint `docker/commons/entrypoint.sh`, che traduce le variabili `GOVPAY_*` nelle property Spring Boot. L'immagine di sviluppo (`Dockerfile.daFile`) contiene anche gli script SQL dello schema in `/opt/sql/<dialetto>/`; quella di release (`Dockerfile.github`) no: gli script sono nell'asset `sql.zip` della release.
 
 I driver JDBC non sono inclusi: vanno montati in `/opt/jdbc-drivers` (vedi [jdbc-drivers/README.md](jdbc-drivers/README.md)).
 
