@@ -26,8 +26,7 @@
         <!-- govpay-common-auth (not in BOM) -->
         <govpay-common-auth.version>1.0.0</govpay-common-auth.version>
 
-        <!-- OWASP config -->
-        <owasp>verify</owasp>
+        <!-- OWASP config: l'esecuzione e' check-owasp di govpay-bom (fase ${owasp.phase}) -->
         <owasp.plugin.autoUpdate>true</owasp.plugin.autoUpdate>
         <owasp.plugin.failBuildOnCVSS>11</owasp.plugin.failBuildOnCVSS>
 
@@ -432,14 +431,6 @@
                     <formats>${owasp.format}</formats>
                     <outputDirectory>${owasp.output.dir}</outputDirectory>
                 </configuration>
-                <executions>
-                    <execution>
-                        <phase>${owasp}</phase>
-                        <goals>
-                            <goal>check</goal>
-                        </goals>
-                    </execution>
-                </executions>
             </plugin>
         </plugins>
     </build>

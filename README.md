@@ -62,10 +62,10 @@ mvn clean install -P war        # war, per il deploy su application server
 
 Il profilo sceglie il packaging; il risultato è in `target/govpay-riconciliazioni-api.jar` o `target/govpay-riconciliazioni-api.war`. Il profilo `dist` (da `govpay-bom`) produce anche `target/sql.zip`, con gli script dello schema per dialetto, usato dall'immagine Docker e dalla release; va sempre indicato insieme a `jar`, perché passando `-P` Maven disattiva il profilo `jar` attivo di default.
 
-La build esegue i test e l'analisi OWASP Dependency-Check delle dipendenze, in due esecuzioni: quella del progetto (`owasp`) e quella ereditata da `govpay-bom` (`owasp.phase`). Per escluderle entrambe, per esempio in sviluppo:
+La build esegue i test e l'analisi OWASP Dependency-Check delle dipendenze (esecuzione `check-owasp` ereditata da `govpay-bom`, nella fase indicata da `owasp.phase`). Per escluderla, per esempio in sviluppo:
 
 ```bash
-mvn clean install -P jar,dist -Dowasp=none -Dowasp.phase=none
+mvn clean install -P jar,dist -Dowasp.phase=none
 ```
 
 ## Configurazione
