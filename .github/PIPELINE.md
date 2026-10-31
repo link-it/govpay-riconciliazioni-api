@@ -75,7 +75,7 @@ Il job `release` fallisce se il pom e' ancora SNAPSHOT o se il tag non coincide 
 
 ```bash
 # Build e test come in pipeline, senza OWASP Dependency-Check
-mvn clean install -P jar,dist -Dspring.profiles.active=test -Dowasp=none -Dowasp.phase=none
+mvn clean install -P jar,dist -Dspring.profiles.active=test -Dowasp.phase=none
 
 # Analisi licenze
 mvn org.codehaus.mojo:license-maven-plugin:2.4.0:aggregate-download-licenses -DexcludeScopes=test,provided,system -DincludeTransitiveDependencies=true
