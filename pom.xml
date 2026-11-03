@@ -428,8 +428,6 @@
                     <ossIndexUsername>${ossIndexUsername}</ossIndexUsername>
                     <ossIndexPassword>${ossIndexPassword}</ossIndexPassword>
                     <dataDirectory>${dataDirectory}</dataDirectory>
-                    <formats>${owasp.format}</formats>
-                    <outputDirectory>${owasp.output.dir}</outputDirectory>
                 </configuration>
             </plugin>
         </plugins>
