@@ -84,6 +84,7 @@ Le proprietà si impostano in `application.properties`, da riga di comando (`-D<
 | `spring.jackson.default-property-inclusion` | `SPRING_JACKSON_DEFAULT_PROPERTY_INCLUSION` | `non_absent` | Esclude dalle risposte JSON i campi nulli o assenti |
 | `server.error.whitelabel.enabled` | `SERVER_ERROR_WHITELABEL_ENABLED` | `true` | Pagina di errore di default di Spring Boot |
 | `spring.main.banner-mode` | `SPRING_MAIN_BANNER_MODE` | `off` | Banner di Spring Boot all'avvio |
+| `springdoc.swagger-ui.version` | - | `@swagger-ui.version@` | Versione della Swagger UI, presa in build dal govpay-bom: springdoc la usa per il percorso del webjar. Da non cambiare |
 | `govpay.riconciliazioni.cluster-id` | `CLUSTER_ID` | `riconciliazioni-api` | Identificativo del nodo. Non ancora letto dal codice |
 
 ### Autenticazione
